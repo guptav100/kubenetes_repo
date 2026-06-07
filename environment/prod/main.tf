@@ -1,5 +1,13 @@
 terraform {
   required_version = ">= 1.0.0"
+
+  # Uncomment and configure your preferred backend
+  # backend "s3" {
+  #   bucket = "my-terraform-state"
+  #   key    = "prod/kubernetes.tfstate"
+  #   region = "us-east-1"
+  # }
+
   required_providers {
     kubernetes = {
       source  = "hashicorp/kubernetes"
@@ -8,9 +16,14 @@ terraform {
   }
 }
 
+variable "kube_config" {
+  type        = string
+  default     = "~/.kube/config"
+  description = "Path to the kubeconfig file"
+}
+
 provider "kubernetes" {
-  # In prod, you'd typically use a more secure auth method
-  config_path = "~/.kube/config"
+  config_path = var.kube_config
 }
 
 module "aks_app" {

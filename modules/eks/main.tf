@@ -18,97 +18,6 @@ variable "namespace" {
   default = "default"
 }
 
-resource "kubernetes_deployment" "nginx" {
-  metadata {
-    name      = var.app_name
-    namespace = var.namespace
-    labels = {
-      app = "nginx"
-    }
-  }
-
-  spec {
-    replicas = var.replicas
-
-    selector {
-      match_labels = {
-        app = "nginx"
-      }
-    }
-
-    template {
-      metadata {
-        labels = {
-          app = "nginx"
-        }
-      }
-
-      spec {
-        container {
-          image = "nginx:latest"
-          name  = "nginx"
-
-          port {
-            container_port = 80
-          }
-
-          volume_mount {
-            name       = "storage"
-            mount_path = "/data"
-          }
-        }
-
-        volume {
-          name = "storage"
-          persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim.ebs_claim.metadata[0].name
-          }
-        }
-      }
-    }
-  }
-}
-
-resource "kubernetes_service" "nginx_svc" {
-  metadata {
-    name      = "${var.app_name}-svc"
-    namespace = var.namespace
-    annotations = {
-      "service.beta.kubernetes.io/aws-load-balancer-type" = "nlb"
-    }
-  }
-
-  spec {
-    selector = {
-      app = "nginx"
-    }
-
-    port {
-      port        = 80
-      target_port = 80
-    }
-
-    type = "LoadBalancer"
-  }
-}
-
-resource "kubernetes_persistent_volume_claim" "ebs_claim" {
-  metadata {
-    name      = "${var.app_name}-pvc"
-    namespace = var.namespace
-  }
-
-  spec {
-    access_modes = ["ReadWriteOnce"]
-    storage_class_name = kubernetes_storage_class.ebs_sc.metadata[0].name
-    resources {
-      requests = {
-        storage = var.storage_size
-      }
-    }
-  }
-}
-
 resource "kubernetes_storage_class" "ebs_sc" {
   metadata {
     name = "${var.app_name}-ebs-sc"
@@ -122,6 +31,15 @@ resource "kubernetes_storage_class" "ebs_sc" {
   volume_binding_mode    = "WaitForFirstConsumer"
 }
 
+module "common" {
+  source             = "../common"
+  app_name           = var.app_name
+  namespace          = var.namespace
+  replicas           = var.replicas
+  storage_size       = var.storage_size
+  storage_class_name = kubernetes_storage_class.ebs_sc.metadata[0].name
+}
+
 output "service_load_balancer_hostname" {
-  value = kubernetes_service.nginx_svc.status[0].load_balancer[0].ingress[0].hostname
+  value = module.common.service_load_balancer_info[0].hostname
 }
